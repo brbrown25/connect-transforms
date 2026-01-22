@@ -1,0 +1,44 @@
+{
+  "type": "record",
+  "name": "LogicalTypesRecord",
+  "namespace": "com.bbrownsound.kafka.connect.transforms.avro",
+  "doc": "Record with Avro logical types",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {
+      "name": "created_date",
+      "type": {"type": "int", "logicalType": "date"},
+      "doc": "Days since Unix epoch"
+    },
+    {
+      "name": "created_timestamp_millis",
+      "type": {"type": "long", "logicalType": "timestamp-millis"},
+      "doc": "Milliseconds since Unix epoch"
+    },
+    {
+      "name": "created_timestamp_micros",
+      "type": {"type": "long", "logicalType": "timestamp-micros"},
+      "doc": "Microseconds since Unix epoch"
+    },
+    {
+      "name": "duration_millis",
+      "type": {"type": "long", "logicalType": "time-millis"},
+      "doc": "Milliseconds since midnight"
+    },
+    {
+      "name": "amount",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 10,
+        "scale": 2
+      },
+      "doc": "Decimal amount with 2 decimal places"
+    },
+    {
+      "name": "unique_id",
+      "type": {"type": "string", "logicalType": "uuid"},
+      "doc": "UUID as string"
+    }
+  ]
+}

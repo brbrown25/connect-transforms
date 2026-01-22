@@ -1,0 +1,358 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+    id 'jacoco'
+    id 'idea'
+    id 'maven-publish'
+    id 'com.google.protobuf' version '0.9.4'
+    id 'com.diffplug.spotless' version '6.25.0'
+}
+
+group = 'com.bbrownsound'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://packages.confluent.io/maven/"
+    }
+}
+
+ext {
+    kafkaVersion = '3.6.1'
+    junitVersion = '5.10.1'
+    jacksonVersion = '2.16.1'
+    slf4jVersion = '2.0.9'
+    protobufVersion = '3.25.2'
+    confluentVersion = '7.5.3'
+    avroVersion = '1.11.3'
+    testcontainersVersion = '1.19.3'
+    awaitilityVersion = '4.2.0'
+}
+
+dependencies {
+    // Kafka Connect API (provided at runtime by Kafka Connect)
+    compileOnly "org.apache.kafka:connect-api:${kafkaVersion}"
+    compileOnly "org.apache.kafka:connect-transforms:${kafkaVersion}"
+    
+    // Jackson for JSON serialization
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    
+    // SLF4J for logging
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    
+    // Test dependencies
+    testImplementation "org.apache.kafka:connect-api:${kafkaVersion}"
+    testImplementation "org.apache.kafka:connect-transforms:${kafkaVersion}"
+    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testRuntimeOnly "org.slf4j:slf4j-simple:${slf4jVersion}"
+    
+    // Protobuf dependencies for tests
+    testImplementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+    testImplementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    
+    // Confluent converters for tests
+    testImplementation "io.confluent:kafka-connect-protobuf-converter:${confluentVersion}"
+    testImplementation "io.confluent:kafka-protobuf-provider:${confluentVersion}"
+    testImplementation "org.apache.avro:avro:${avroVersion}"
+    testImplementation "io.confluent:kafka-connect-avro-converter:${confluentVersion}"
+    testImplementation "io.confluent:kafka-avro-serializer:${confluentVersion}"
+    testImplementation "io.confluent:kafka-connect-json-schema-converter:${confluentVersion}"
+    testImplementation "io.confluent:kafka-json-schema-provider:${confluentVersion}"
+    testImplementation "io.confluent:kafka-json-schema-serializer:${confluentVersion}"
+}
+
+// Integration test source set
+sourceSets {
+    integrationTest {
+        java {
+            srcDir 'src/integration-test/java'
+            compileClasspath += sourceSets.main.output + sourceSets.test.output
+            runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+        }
+        resources {
+            srcDir 'src/integration-test/resources'
+        }
+    }
+}
+
+configurations {
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+dependencies {
+    // Integration test specific dependencies
+    integrationTestImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
+    integrationTestImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+    integrationTestImplementation "org.testcontainers:kafka:${testcontainersVersion}"
+    integrationTestImplementation "org.awaitility:awaitility:${awaitilityVersion}"
+    
+    // Kafka clients for integration tests
+    integrationTestImplementation "org.apache.kafka:kafka-clients:${kafkaVersion}"
+    integrationTestImplementation "org.apache.kafka:connect-runtime:${kafkaVersion}"
+    integrationTestImplementation "org.apache.kafka:connect-json:${kafkaVersion}"
+    
+    // HTTP client for Connect REST API
+    integrationTestImplementation "org.apache.httpcomponents.client5:httpclient5:5.3"
+    
+    // Confluent serializers for integration tests
+    integrationTestImplementation "io.confluent:kafka-avro-serializer:${confluentVersion}"
+    integrationTestImplementation "io.confluent:kafka-protobuf-serializer:${confluentVersion}"
+    integrationTestImplementation "io.confluent:kafka-json-schema-serializer:${confluentVersion}"
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+    generateProtoTasks {
+        all().configureEach { task ->
+            task.builtins {
+                java {}
+            }
+        }
+    }
+}
+
+// Include generated protobuf sources in test source set
+sourceSets {
+    test {
+        java {
+            srcDirs 'build/generated/source/proto/test/java'
+        }
+        proto {
+            srcDir 'src/test/proto'
+        }
+    }
+}
+
+// Handle duplicate proto files in resources
+tasks.withType(Copy).configureEach {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Exclude proto files from being copied to resources (but keep avro schemas)
+processTestResources {
+    exclude '**/*.proto'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+    finalizedBy jacocoTestReport
+}
+
+// JaCoCo configuration
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+// Integration test task
+tasks.register('integrationTest', Test) {
+    description = 'Runs integration tests with Testcontainers'
+    group = 'verification'
+    
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    
+    useJUnitPlatform()
+    
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = true
+    }
+    
+    // Integration tests may take longer
+    systemProperty 'junit.jupiter.execution.timeout.default', '5m'
+    
+    // Pass through docker host if set
+    if (System.getenv('DOCKER_HOST')) {
+        systemProperty 'DOCKER_HOST', System.getenv('DOCKER_HOST')
+    }
+}
+
+// JaCoCo report for integration tests
+tasks.register('jacocoIntegrationTestReport', JacocoReport) {
+    dependsOn tasks.named('integrationTest')
+    sourceSets sourceSets.main
+    executionData fileTree(dir: "${buildDir}/jacoco", include: "integrationTest.exec")
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+    // Only run if there's execution data
+    onlyIf {
+        file("${buildDir}/jacoco/integrationTest.exec").exists()
+    }
+}
+
+// Combined coverage report
+tasks.register('jacocoCombinedReport', JacocoReport) {
+    dependsOn tasks.named('test'), tasks.named('integrationTest')
+    sourceSets sourceSets.main
+    executionData fileTree(dir: "${buildDir}/jacoco", include: "*.exec")
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                minimum = 0.80
+            }
+        }
+        rule {
+            limit {
+                counter = 'BRANCH'
+                minimum = 0.75
+            }
+        }
+    }
+}
+
+// Ensure check task runs coverage verification
+check.dependsOn jacocoTestCoverageVerification
+
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    maxWarnings = 0
+}
+
+// Spotless configuration for auto-formatting
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+        indentWithSpaces(4)
+        // Use Google Java Format
+        googleJavaFormat('1.19.2').aosp()
+    }
+}
+
+tasks.withType(Checkstyle) {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// Exclude generated protobuf files from checkstyle
+checkstyleTest {
+    source = fileTree('src/test/java')
+}
+
+// Configure auto-generated checkstyle task for integration tests
+tasks.named('checkstyleIntegrationTest') {
+    source = fileTree('src/integration-test/java')
+}
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version
+        )
+    }
+}
+
+// Create a fat JAR for Connect plugin deployment
+tasks.register('connectPluginJar', Jar) {
+    archiveClassifier = 'connect-plugin'
+    from sourceSets.main.output
+    dependsOn configurations.runtimeClasspath
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+artifacts {
+    archives tasks.named('connectPluginJar')
+}
+
+// Maven publishing configuration for GitHub Packages
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            
+            artifact tasks.named('connectPluginJar')
+            
+            pom {
+                name = 'Kafka Connect Transforms'
+                description = 'Custom Single Message Transformations (SMTs) for Apache Kafka Connect'
+                url = 'https://github.com/brandonbrown/connect-transforms'
+                
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                
+                developers {
+                    developer {
+                        id = 'brandonbrown'
+                        name = 'Brandon Brown'
+                    }
+                }
+                
+                scm {
+                    connection = 'scm:git:git://github.com/brandonbrown/connect-transforms.git'
+                    developerConnection = 'scm:git:ssh://github.com:brandonbrown/connect-transforms.git'
+                    url = 'https://github.com/brandonbrown/connect-transforms'
+                }
+            }
+        }
+    }
+    
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/brandonbrown/connect-transforms")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+}
+
+// IDE configuration
+idea {
+    module {
+        testSourceDirs += sourceSets.integrationTest.java.srcDirs
+        testResourceDirs += sourceSets.integrationTest.resources.srcDirs
+    }
+}

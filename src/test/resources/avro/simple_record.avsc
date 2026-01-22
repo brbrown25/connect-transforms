@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "SimpleRecord",
+  "namespace": "com.bbrownsound.kafka.connect.transforms.avro",
+  "fields": [
+    {"name": "id", "type": "int"},
+    {"name": "name", "type": "string"},
+    {"name": "active", "type": "boolean"},
+    {"name": "score", "type": "double"}
+  ]
+}

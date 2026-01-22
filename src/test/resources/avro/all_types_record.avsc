@@ -1,0 +1,46 @@
+{
+  "type": "record",
+  "name": "AllTypesRecord",
+  "namespace": "com.bbrownsound.kafka.connect.transforms.avro",
+  "doc": "Record containing all Avro primitive types",
+  "fields": [
+    {"name": "nullable_string", "type": ["null", "string"], "default": null},
+    {"name": "boolean_val", "type": "boolean"},
+    {"name": "int_val", "type": "int"},
+    {"name": "long_val", "type": "long"},
+    {"name": "float_val", "type": "float"},
+    {"name": "double_val", "type": "double"},
+    {"name": "bytes_val", "type": "bytes"},
+    {"name": "string_val", "type": "string"},
+    {
+      "name": "array_val",
+      "type": {"type": "array", "items": "string"}
+    },
+    {
+      "name": "map_val",
+      "type": {"type": "map", "values": "int"}
+    },
+    {
+      "name": "enum_val",
+      "type": {
+        "type": "enum",
+        "name": "Color",
+        "symbols": ["RED", "GREEN", "BLUE"]
+      }
+    },
+    {
+      "name": "fixed_val",
+      "type": {"type": "fixed", "name": "FourBytes", "size": 4}
+    },
+    {
+      "name": "nested_record",
+      "type": {
+        "type": "record",
+        "name": "NestedType",
+        "fields": [
+          {"name": "inner_value", "type": "string"}
+        ]
+      }
+    }
+  ]
+}

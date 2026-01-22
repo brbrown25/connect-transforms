@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "UserPreferences",
+  "namespace": "com.bbrownsound.kafka.connect.transforms.avro",
+  "fields": [
+    {"name": "user_id", "type": "string"},
+    {
+      "name": "settings",
+      "type": {"type": "map", "values": "string"}
+    },
+    {
+      "name": "feature_flags",
+      "type": {"type": "map", "values": "int"}
+    }
+  ]
+}

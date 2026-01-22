@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "Message",
+  "namespace": "io.test",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {
+      "name": "content",
+      "type": {
+        "type": "record",
+        "name": "Content",
+        "fields": [
+          {"name": "text", "type": "string"},
+          {"name": "unicode_text", "type": "string"}
+        ]
+      }
+    }
+  ]
+}
