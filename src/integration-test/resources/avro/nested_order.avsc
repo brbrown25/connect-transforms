@@ -1,0 +1,57 @@
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "io.test",
+  "fields": [
+    {"name": "order_id", "type": "string"},
+    {
+      "name": "order_details",
+      "type": {
+        "type": "record",
+        "name": "OrderDetails",
+        "fields": [
+          {
+            "name": "customer",
+            "type": {
+              "type": "record",
+              "name": "Customer",
+              "fields": [
+                {"name": "name", "type": "string"},
+                {"name": "email", "type": "string"},
+                {
+                  "name": "address",
+                  "type": {
+                    "type": "record",
+                    "name": "Address",
+                    "fields": [
+                      {"name": "street", "type": "string"},
+                      {"name": "city", "type": "string"},
+                      {"name": "country", "type": "string"}
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "items",
+            "type": {
+              "type": "array",
+              "items": {
+                "type": "record",
+                "name": "Item",
+                "fields": [
+                  {"name": "sku", "type": "string"},
+                  {"name": "name", "type": "string"},
+                  {"name": "price", "type": "double"},
+                  {"name": "quantity", "type": "int"}
+                ]
+              }
+            }
+          },
+          {"name": "total", "type": "double"}
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "type": "record",
+  "name": "NullableRecord",
+  "namespace": "com.bbrownsound.kafka.connect.transforms.avro",
+  "doc": "Record with nullable (union) fields to test Avro union handling",
+  "fields": [
+    {"name": "required_field", "type": "string"},
+    {"name": "optional_string", "type": ["null", "string"], "default": null},
+    {"name": "optional_int", "type": ["null", "int"], "default": null},
+    {"name": "optional_long", "type": ["null", "long"], "default": null},
+    {"name": "optional_double", "type": ["null", "double"], "default": null},
+    {"name": "optional_boolean", "type": ["null", "boolean"], "default": null},
+    {
+      "name": "optional_nested",
+      "type": [
+        "null",
+        {
+          "type": "record",
+          "name": "NestedRecord",
+          "fields": [
+            {"name": "value", "type": "string"}
+          ]
+        }
+      ],
+      "default": null
+    }
+  ]
+}
