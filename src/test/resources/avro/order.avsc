@@ -1,0 +1,35 @@
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "com.bbrownsound.kafka.connect.transforms.avro",
+  "fields": [
+    {"name": "order_id", "type": "string"},
+    {"name": "customer_id", "type": "string"},
+    {
+      "name": "items",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OrderItem",
+          "fields": [
+            {"name": "sku", "type": "string"},
+            {"name": "product_name", "type": "string"},
+            {"name": "quantity", "type": "int"},
+            {"name": "unit_price", "type": "double"}
+          ]
+        }
+      }
+    },
+    {"name": "total_amount", "type": "double"},
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "OrderStatus",
+        "symbols": ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"]
+      }
+    },
+    {"name": "created_at", "type": "long"}
+  ]
+}

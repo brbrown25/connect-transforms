@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package com.bbrownsound.kafka.connect.transforms.proto;
+
+option java_outer_classname = "TestMessages";
+option java_package = "com.bbrownsound.kafka.connect.transforms.proto";
+
+// Simple message with primitive types
+message SimpleMessage {
+  int32 id = 1;
+  string name = 2;
+  bool active = 3;
+  double score = 4;
+}
+
+// Message with nested structure
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip_code = 4;
+  string country = 5;
+}
+
+message Person {
+  string first_name = 1;
+  string last_name = 2;
+  int32 age = 3;
+  string email = 4;
+  Address address = 5;
+  repeated string phone_numbers = 6;
+}
+
+// Message with repeated nested messages (array of objects)
+message OrderItem {
+  string sku = 1;
+  string product_name = 2;
+  int32 quantity = 3;
+  double unit_price = 4;
+}
+
+message Order {
+  string order_id = 1;
+  string customer_id = 2;
+  repeated OrderItem items = 3;
+  double total_amount = 4;
+  OrderStatus status = 5;
+  int64 created_at = 6;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_CONFIRMED = 2;
+  ORDER_STATUS_SHIPPED = 3;
+  ORDER_STATUS_DELIVERED = 4;
+  ORDER_STATUS_CANCELLED = 5;
+}
+
+// Message with map fields
+message UserPreferences {
+  string user_id = 1;
+  map<string, string> settings = 2;
+  map<string, int32> feature_flags = 3;
+}
+
+// Complex nested message simulating a real-world event
+message EventMetadata {
+  string event_id = 1;
+  string event_type = 2;
+  int64 timestamp = 3;
+  string source = 4;
+  map<string, string> headers = 5;
+}
+
+message UserEvent {
+  EventMetadata metadata = 1;
+  string user_id = 2;
+  oneof payload {
+    UserCreated user_created = 3;
+    UserUpdated user_updated = 4;
+    UserDeleted user_deleted = 5;
+  }
+}
+
+message UserCreated {
+  string username = 1;
+  string email = 2;
+  Person profile = 3;
+}
+
+message UserUpdated {
+  repeated string updated_fields = 1;
+  Person old_profile = 2;
+  Person new_profile = 3;
+}
+
+message UserDeleted {
+  string reason = 1;
+  int64 deleted_at = 2;
+}
+
+// Wrapper message that contains a payload field to be converted to JSON
+message KafkaRecord {
+  string key = 1;
+  int64 timestamp = 2;
+  EventMetadata metadata = 3;
+  bytes raw_payload = 4;
+}
+
+// Message with all protobuf scalar types for comprehensive testing
+message AllTypesMessage {
+  double double_val = 1;
+  float float_val = 2;
+  int32 int32_val = 3;
+  int64 int64_val = 4;
+  uint32 uint32_val = 5;
+  uint64 uint64_val = 6;
+  sint32 sint32_val = 7;
+  sint64 sint64_val = 8;
+  fixed32 fixed32_val = 9;
+  fixed64 fixed64_val = 10;
+  sfixed32 sfixed32_val = 11;
+  sfixed64 sfixed64_val = 12;
+  bool bool_val = 13;
+  string string_val = 14;
+  bytes bytes_val = 15;
+}
