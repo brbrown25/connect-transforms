@@ -31,7 +31,7 @@ ext {
     slf4jVersion = '2.0.9'
     protobufVersion = '3.25.2'
     confluentVersion = '7.5.3'
-    avroVersion = '1.11.3'
+    avroVersion = '1.12.1'
     testcontainersVersion = '1.19.3'
     awaitilityVersion = '4.2.0'
 }
