@@ -352,7 +352,7 @@ publishing {
 // IDE configuration
 idea {
     module {
-        testSourceDirs += sourceSets.integrationTest.java.srcDirs
-        testResourceDirs += sourceSets.integrationTest.resources.srcDirs
+        testSources.from(sourceSets.integrationTest.java.srcDirs)
+        testResources.from(sourceSets.integrationTest.resources.srcDirs)
     }
 }
