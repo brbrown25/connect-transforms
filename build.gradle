@@ -27,7 +27,7 @@ repositories {
 ext {
     kafkaVersion = '4.1.1'
     junitVersion = '6.0.2'
-    jacksonVersion = '2.16.1'
+    jacksonVersion = '2.21.0'
     slf4jVersion = '2.0.17'
     protobufVersion = '3.25.2'
     confluentVersion = '8.1.1'
