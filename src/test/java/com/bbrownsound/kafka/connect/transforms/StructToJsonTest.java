@@ -1111,6 +1111,133 @@ class StructToJsonTest extends BaseTransformTest {
     }
 
     @Nested
+    @DisplayName("Schema evolution tests")
+    class SchemaEvolutionTests {
+
+        private static final String PROTOBUF_TAG_PARAM = "io.confluent.connect.protobuf.Tag";
+
+        @Test
+        @DisplayName("Should change transformed field from STRUCT to OPTIONAL_STRING in schema")
+        void shouldChangeTransformedFieldTypeInSchema() {
+            configureTransform("data");
+
+            final Schema innerSchema =
+                    SchemaBuilder.struct().field("x", Schema.STRING_SCHEMA).build();
+            final Schema schema =
+                    SchemaBuilder.struct()
+                            .field("id", Schema.INT32_SCHEMA)
+                            .field("data", innerSchema)
+                            .build();
+            final Struct inner = new Struct(innerSchema).put("x", "value");
+            final Struct value = new Struct(schema).put("id", 1).put("data", inner);
+
+            final SourceRecord record = createValueRecord(schema, value);
+            final SourceRecord result = transformValue.apply(record);
+
+            final Schema beforeSchema = record.valueSchema();
+            final Schema afterSchema = result.valueSchema();
+
+            assertEquals(2, beforeSchema.fields().size());
+            assertEquals(2, afterSchema.fields().size());
+            assertEquals(Schema.Type.STRUCT, beforeSchema.field("data").schema().type());
+            assertEquals(Schema.Type.STRING, afterSchema.field("data").schema().type());
+            assertTrue(afterSchema.field("data").schema().isOptional());
+        }
+
+        @Test
+        @DisplayName("Should add new output field when input != output")
+        void shouldAddNewOutputFieldWhenInputDifferentFromOutput() {
+            configureTransform("payload", "payload_json");
+
+            final Schema payloadSchema =
+                    SchemaBuilder.struct().field("x", Schema.STRING_SCHEMA).build();
+            final Schema schema =
+                    SchemaBuilder.struct()
+                            .field("payload", payloadSchema)
+                            .field("id", Schema.INT32_SCHEMA)
+                            .build();
+            final Struct payload = new Struct(payloadSchema).put("x", "v");
+            final Struct value = new Struct(schema).put("payload", payload).put("id", 1);
+
+            final SourceRecord record = createValueRecord(schema, value);
+            final SourceRecord result = transformValue.apply(record);
+
+            final Schema beforeSchema = record.valueSchema();
+            final Schema afterSchema = result.valueSchema();
+
+            assertEquals(2, beforeSchema.fields().size());
+            assertEquals(3, afterSchema.fields().size());
+            assertNotNull(afterSchema.field("payload"));
+            assertNotNull(afterSchema.field("payload_json"));
+            assertNotNull(afterSchema.field("id"));
+            assertEquals(Schema.Type.STRING, afterSchema.field("payload_json").schema().type());
+        }
+
+        @Test
+        @DisplayName("Should preserve Protobuf Tag when replacing field in-place")
+        void shouldPreserveProtobufTagWhenReplacingInPlace() {
+            configureTransform("data");
+
+            final Schema innerSchema =
+                    SchemaBuilder.struct()
+                            .field("x", Schema.STRING_SCHEMA)
+                            .parameter(PROTOBUF_TAG_PARAM, "2")
+                            .build();
+            final Schema idSchema =
+                    SchemaBuilder.int32().parameter(PROTOBUF_TAG_PARAM, "1").build();
+            final Schema schema =
+                    SchemaBuilder.struct().field("id", idSchema).field("data", innerSchema).build();
+            final Struct inner = new Struct(innerSchema).put("x", "v");
+            final Struct value = new Struct(schema).put("id", 1).put("data", inner);
+
+            final SourceRecord record = createValueRecord(schema, value);
+            final SourceRecord result = transformValue.apply(record);
+
+            final Schema afterSchema = result.valueSchema();
+            final Schema transformedFieldSchema = afterSchema.field("data").schema();
+            assertNotNull(
+                    transformedFieldSchema.parameters(),
+                    "Transformed field schema should have parameters");
+            assertEquals(
+                    "2",
+                    transformedFieldSchema.parameters().get(PROTOBUF_TAG_PARAM),
+                    "Protobuf Tag should be preserved when replacing in-place");
+        }
+
+        @Test
+        @DisplayName("Should assign unique Protobuf Tag when adding new output field")
+        void shouldAssignUniqueProtobufTagWhenAddingNewField() {
+            configureTransform("payload", "payload_json");
+
+            final Schema payloadSchema =
+                    SchemaBuilder.struct()
+                            .field("x", Schema.STRING_SCHEMA)
+                            .parameter(PROTOBUF_TAG_PARAM, "2")
+                            .build();
+            final Schema idSchema =
+                    SchemaBuilder.int32().parameter(PROTOBUF_TAG_PARAM, "3").build();
+            final Schema schema =
+                    SchemaBuilder.struct()
+                            .field("payload", payloadSchema)
+                            .field("id", idSchema)
+                            .build();
+            final Struct payload = new Struct(payloadSchema).put("x", "v");
+            final Struct value = new Struct(schema).put("payload", payload).put("id", 1);
+
+            final SourceRecord record = createValueRecord(schema, value);
+            final SourceRecord result = transformValue.apply(record);
+
+            final Schema afterSchema = result.valueSchema();
+            final Schema newFieldSchema = afterSchema.field("payload_json").schema();
+            assertNotNull(newFieldSchema.parameters());
+            final String newTag = newFieldSchema.parameters().get(PROTOBUF_TAG_PARAM);
+            assertNotNull(newTag, "New field should have Protobuf Tag assigned");
+            int tagNum = Integer.parseInt(newTag);
+            assertTrue(tagNum > 3, "New field Tag should be greater than max existing (3)");
+        }
+    }
+
+    @Nested
     @DisplayName("Protobuf-like Structure Tests")
     class ProtobufLikeStructureTests {
 
