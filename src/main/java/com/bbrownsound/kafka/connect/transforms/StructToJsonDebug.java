@@ -20,8 +20,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.kafka.common.cache.Cache;
 import org.apache.kafka.common.cache.LRUCache;
 import org.apache.kafka.common.cache.SynchronizedCache;
@@ -38,34 +40,28 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A Kafka Connect Single Message Transform (SMT) that converts a Struct field to a JSON string.
- *
- * <p>This transformation is useful when you have protobuf-schemaed messages (which appear as
- * Structs in Kafka Connect) and you want to serialize a specific field to a JSON string for
- * downstream processing.
- *
- * <p>The resulting JSON string is valid JSON without escape characters and can be round-tripped
- * (parsed back to the original structure).
+ * Debug variant of StructToJson that supports multiple field mappings via a single config: {@code
+ * input_field:output_field} with comma-separated entries (e.g. {@code
+ * payload:payload_json,meta:meta_json}).
  *
  * @param <R> The type of ConnectRecord
- * @see StructToJsonConfig
+ * @see StructToJsonDebugConfig
  */
-public abstract class StructToJson<R extends ConnectRecord<R>> implements Transformation<R> {
+public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements Transformation<R> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StructToJson.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StructToJsonDebug.class);
 
-    private StructToJsonConfig config;
+    private StructToJsonDebugConfig config;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private Cache<Schema, Schema> schemaUpdateCache;
 
     @Override
     public void configure(final Map<String, ?> configs) {
-        this.config = new StructToJsonConfig(configs);
+        this.config = new StructToJsonDebugConfig(configs);
         this.schemaUpdateCache = new SynchronizedCache<>(new LRUCache<>(16));
         LOG.info(
-                "Configured StructToJson with fieldName={}, outputFieldName={}, skipMissingOrNull={}",
-                config.fieldName(),
-                config.outputFieldName(),
+                "Configured StructToJsonDebug with fieldMappings={}, skipMissingOrNull={}",
+                config.fieldMappings(),
                 config.skipMissingOrNull());
     }
 
@@ -74,7 +70,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         final String topic = record.topic();
         final Integer partition = record.kafkaPartition();
         LOG.info(
-                "StructToJson.apply entry: topic={}, partition={}, hasSchema={}",
+                "StructToJsonDebug.apply entry: topic={}, partition={}, hasSchema={}",
                 topic,
                 partition,
                 operatingSchema(record) != null);
@@ -82,7 +78,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
             if (operatingValue(record) == null) {
                 if (config.skipMissingOrNull()) {
                     LOG.info(
-                            "StructToJson skipped record: topic={}, partition={}, reason=value_is_null",
+                            "StructToJsonDebug skipped record: topic={}, partition={}, reason=value_is_null",
                             topic,
                             partition);
                     return record;
@@ -103,20 +99,19 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
                 result = applyWithSchema(record);
             }
             LOG.info(
-                    "StructToJson applied: topic={}, partition={}, field={}, outputField={}",
+                    "StructToJsonDebug applied: topic={}, partition={}, mappings={}",
                     topic,
                     partition,
-                    config.fieldName(),
-                    config.outputFieldName());
+                    config.fieldMappings().size());
             return result;
         } catch (final Exception e) {
             LOG.info(
-                    "StructToJson encountered error for record: topic={}, partition={}, error={}",
+                    "StructToJsonDebug encountered error for record: topic={}, partition={}, error={}",
                     topic,
                     partition,
                     e.getMessage());
             LOG.error(
-                    "StructToJson failed: topic={}, partition={}, error={}, cause={}",
+                    "StructToJsonDebug failed: topic={}, partition={}, error={}, cause={}",
                     topic,
                     partition,
                     e.getMessage(),
@@ -136,43 +131,43 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         }
 
         @SuppressWarnings("unchecked")
-        final Map<String, Object> valueMap = (Map<String, Object>) value;
+        final Map<String, Object> valueMap = new HashMap<>((Map<String, Object>) value);
 
-        if (!valueMap.containsKey(config.fieldName())) {
-            if (config.skipMissingOrNull()) {
-                LOG.info(
-                        "StructToJson skipped record: topic={}, partition={}, reason=field_missing",
-                        record.topic(),
-                        record.kafkaPartition());
-                return record;
+        final Map<String, String> inputToJson = new HashMap<>();
+        for (final StructToJsonDebugConfig.FieldMapping mapping : config.fieldMappings()) {
+            final String inputField = mapping.inputField();
+            final String outputField = mapping.outputField();
+
+            if (!valueMap.containsKey(inputField)) {
+                if (config.skipMissingOrNull()) {
+                    LOG.info(
+                            "StructToJsonDebug skipping mapping (missing): {} -> {}",
+                            inputField,
+                            outputField);
+                    continue;
+                }
+                throw new DataException("Field '" + inputField + "' does not exist in the record");
             }
-            throw new DataException(
-                    "Field '" + config.fieldName() + "' does not exist in the record");
-        }
 
-        final Object fieldValue = valueMap.get(config.fieldName());
-
-        if (fieldValue == null) {
-            if (config.skipMissingOrNull()) {
-                LOG.info(
-                        "StructToJson skipped record: topic={}, partition={}, reason=field_null",
-                        record.topic(),
-                        record.kafkaPartition());
-                return record;
+            final Object fieldValue = valueMap.get(inputField);
+            if (fieldValue == null) {
+                if (config.skipMissingOrNull()) {
+                    LOG.info(
+                            "StructToJsonDebug skipping mapping (null): {} -> {}",
+                            inputField,
+                            outputField);
+                    continue;
+                }
+                throw new DataException("Field '" + inputField + "' is null");
             }
-            throw new DataException("Field '" + config.fieldName() + "' is null");
+
+            final String jsonString =
+                    inputToJson.computeIfAbsent(
+                            inputField, k -> convertToJson(convertSchemalessValue(fieldValue)));
+            valueMap.put(outputField, jsonString);
         }
 
-        final String jsonString = convertToJson(convertSchemalessValue(fieldValue));
-
-        final Map<String, Object> updatedValue = new HashMap<>(valueMap);
-        if (config.outputFieldName().equals(config.fieldName())) {
-            updatedValue.put(config.fieldName(), jsonString);
-        } else {
-            updatedValue.put(config.outputFieldName(), jsonString);
-        }
-
-        return newRecord(record, null, updatedValue);
+        return newRecord(record, null, valueMap);
     }
 
     private R applyWithSchema(final R record) {
@@ -186,33 +181,50 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         }
 
         final Struct struct = (Struct) value;
-        final Field field = schema.field(config.fieldName());
+        final Map<String, String> inputToJson = new HashMap<>();
 
-        if (field == null) {
-            if (config.skipMissingOrNull()) {
-                LOG.info(
-                        "StructToJson skipped record: topic={}, partition={}, reason=field_not_in_schema",
-                        record.topic(),
-                        record.kafkaPartition());
-                return record;
+        for (final StructToJsonDebugConfig.FieldMapping mapping : config.fieldMappings()) {
+            final String inputField = mapping.inputField();
+            final String outputField = mapping.outputField();
+            final Field field = schema.field(inputField);
+
+            if (field == null) {
+                if (config.skipMissingOrNull()) {
+                    LOG.info(
+                            "StructToJsonDebug skipping mapping (not in schema): {} -> {}",
+                            inputField,
+                            outputField);
+                    continue;
+                }
+                throw new DataException("Field '" + inputField + "' does not exist in schema");
             }
-            throw new DataException("Field '" + config.fieldName() + "' does not exist in schema");
+
+            final Object fieldValue = struct.get(field);
+            if (fieldValue == null) {
+                if (config.skipMissingOrNull()) {
+                    LOG.info(
+                            "StructToJsonDebug skipping mapping (null): {} -> {}",
+                            inputField,
+                            outputField);
+                    continue;
+                }
+                throw new DataException("Field '" + inputField + "' is null");
+            }
+
+            inputToJson.put(
+                    inputField,
+                    inputToJson.computeIfAbsent(
+                            inputField,
+                            k -> convertToJson(structToMap(fieldValue, field.schema()))));
         }
 
-        final Object fieldValue = struct.get(field);
-
-        if (fieldValue == null) {
-            if (config.skipMissingOrNull()) {
-                LOG.info(
-                        "StructToJson skipped record: topic={}, partition={}, reason=field_null",
-                        record.topic(),
-                        record.kafkaPartition());
-                return record;
-            }
-            throw new DataException("Field '" + config.fieldName() + "' is null");
+        if (inputToJson.isEmpty()) {
+            LOG.info(
+                    "StructToJsonDebug no mappings applied (all skipped): topic={}, partition={}",
+                    record.topic(),
+                    record.kafkaPartition());
+            return record;
         }
-
-        final String jsonString = convertToJson(structToMap(fieldValue, field.schema()));
 
         Schema updatedSchema = schemaUpdateCache.get(schema);
         if (updatedSchema == null) {
@@ -220,38 +232,61 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
             schemaUpdateCache.put(schema, updatedSchema);
         }
 
-        final Struct updatedValue = new Struct(updatedSchema);
-        for (final Field f : schema.fields()) {
-            if (f.name().equals(config.fieldName())
-                    && config.outputFieldName().equals(config.fieldName())) {
-                updatedValue.put(config.outputFieldName(), jsonString);
-            } else if (!f.name().equals(config.fieldName())
-                    || !config.outputFieldName().equals(config.fieldName())) {
-                updatedValue.put(f.name(), struct.get(f));
+        final Set<String> outputFieldNames = new HashSet<>();
+        for (final StructToJsonDebugConfig.FieldMapping m : config.fieldMappings()) {
+            if (inputToJson.containsKey(m.inputField())) {
+                outputFieldNames.add(m.outputField());
             }
         }
 
-        if (!config.outputFieldName().equals(config.fieldName())) {
-            updatedValue.put(config.outputFieldName(), jsonString);
+        final Struct updatedValue = new Struct(updatedSchema);
+        for (final Field f : updatedSchema.fields()) {
+            if (outputFieldNames.contains(f.name())) {
+                for (final StructToJsonDebugConfig.FieldMapping m : config.fieldMappings()) {
+                    if (m.outputField().equals(f.name())
+                            && inputToJson.containsKey(m.inputField())) {
+                        updatedValue.put(f.name(), inputToJson.get(m.inputField()));
+                        break;
+                    }
+                }
+            } else {
+                final Field origField = schema.field(f.name());
+                if (origField != null) {
+                    updatedValue.put(f.name(), struct.get(origField));
+                }
+            }
         }
 
         return newRecord(record, updatedSchema, updatedValue);
     }
 
     private Schema makeUpdatedSchema(final Schema schema) {
+        final Set<String> inputsToReplace = new HashSet<>();
+        final Set<String> outputsToAdd = new HashSet<>();
+        for (final StructToJsonDebugConfig.FieldMapping m : config.fieldMappings()) {
+            if (schema.field(m.inputField()) != null) {
+                if (m.inputField().equals(m.outputField())) {
+                    inputsToReplace.add(m.inputField());
+                } else {
+                    outputsToAdd.add(m.outputField());
+                }
+            }
+        }
+
         final SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
 
         for (final Field field : schema.fields()) {
-            if (field.name().equals(config.fieldName())
-                    && config.outputFieldName().equals(config.fieldName())) {
-                builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+            if (inputsToReplace.contains(field.name())) {
+                builder.field(field.name(), Schema.OPTIONAL_STRING_SCHEMA);
             } else {
                 builder.field(field.name(), field.schema());
             }
         }
 
-        if (!config.outputFieldName().equals(config.fieldName())) {
-            builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+        for (final String outputField : outputsToAdd) {
+            if (schema.field(outputField) == null) {
+                builder.field(outputField, Schema.OPTIONAL_STRING_SCHEMA);
+            }
         }
 
         return builder.build();
@@ -267,16 +302,13 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         }
     }
 
-    /** Converts a Struct (or nested value) to a Map suitable for JSON serialization. */
     private Object structToMap(final Object value, final Schema schema) {
         if (value == null) {
             return null;
         }
-
         if (schema == null) {
             return convertSchemalessValue(value);
         }
-
         switch (schema.type()) {
             case STRUCT:
                 return structToMap((Struct) value);
@@ -294,10 +326,6 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
             case STRING:
                 return value;
             case BYTES:
-                if (value instanceof byte[]) {
-                    return value;
-                }
-                return value;
             default:
                 return value;
         }
@@ -329,7 +357,6 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         if (struct == null) {
             return null;
         }
-
         final Map<String, Object> map = new HashMap<>();
         for (final Field field : struct.schema().fields()) {
             final Object fieldValue = struct.get(field);
@@ -342,7 +369,6 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         if (array == null) {
             return null;
         }
-
         final List<Object> list = new ArrayList<>();
         for (final Object element : array) {
             list.add(structToMap(element, elementSchema));
@@ -355,7 +381,6 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         if (map == null) {
             return null;
         }
-
         final Map<Object, Object> result = new HashMap<>();
         for (final Map.Entry<?, ?> entry : map.entrySet()) {
             final Object key = structToMap(entry.getKey(), keySchema);
@@ -367,40 +392,20 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
 
     @Override
     public ConfigDef config() {
-        return StructToJsonConfig.CONFIG_DEF;
+        return StructToJsonDebugConfig.CONFIG_DEF;
     }
 
     @Override
     public void close() {}
 
-    /**
-     * Returns the schema to operate on (key or value schema).
-     *
-     * @param record the record to get the schema from
-     * @return the schema to operate on
-     */
     protected abstract Schema operatingSchema(R record);
 
-    /**
-     * Returns the value to operate on (key or value).
-     *
-     * @param record the record to get the value from
-     * @return the value to operate on
-     */
     protected abstract Object operatingValue(R record);
 
-    /**
-     * Creates a new record with the updated schema and value.
-     *
-     * @param record the original record
-     * @param updatedSchema the updated schema
-     * @param updatedValue the updated value
-     * @return a new record with the updated schema and value
-     */
     protected abstract R newRecord(R record, Schema updatedSchema, Object updatedValue);
 
     /** Implementation for transforming record keys. */
-    public static class Key<R extends ConnectRecord<R>> extends StructToJson<R> {
+    public static class Key<R extends ConnectRecord<R>> extends StructToJsonDebug<R> {
 
         @Override
         protected Schema operatingSchema(final R record) {
@@ -427,7 +432,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
     }
 
     /** Implementation for transforming record values. */
-    public static class Value<R extends ConnectRecord<R>> extends StructToJson<R> {
+    public static class Value<R extends ConnectRecord<R>> extends StructToJsonDebug<R> {
 
         @Override
         protected Schema operatingSchema(final R record) {
@@ -443,7 +448,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         protected R newRecord(
                 final R record, final Schema updatedSchema, final Object updatedValue) {
             LOG.info(
-                    "StructToJson.Value.newRecord: topic={}, partition={}, updatedSchemaFields={}",
+                    "StructToJsonDebug.Value.newRecord: topic={}, partition={}, updatedSchemaFields={}",
                     record.topic(),
                     record.kafkaPartition(),
                     updatedSchema != null ? updatedSchema.fields().size() : 0);
