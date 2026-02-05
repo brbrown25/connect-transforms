@@ -51,13 +51,13 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
@@ -69,8 +69,7 @@ import org.testcontainers.utility.DockerImageName;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class StructToJsonEmbeddedConnectTest {
 
-    private static final Logger LOG =
-            LoggerFactory.getLogger(StructToJsonEmbeddedConnectTest.class);
+    private static final Logger LOG = LogManager.getLogger(StructToJsonEmbeddedConnectTest.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final AvroData AVRO_DATA = new AvroData(100);
     private static final String CONFLUENT_VERSION = "7.5.3";
