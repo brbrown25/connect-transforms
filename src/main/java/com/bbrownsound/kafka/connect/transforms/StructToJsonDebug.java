@@ -36,8 +36,8 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Debug variant of StructToJson that supports multiple field mappings via a single config: {@code
@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements Transformation<R> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StructToJsonDebug.class);
+    private static final Logger LOG = LogManager.getLogger(StructToJsonDebug.class);
 
     private StructToJsonDebugConfig config;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -98,11 +98,16 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
                         "Applying schema transformation: topic={}, partition={}", topic, partition);
                 result = applyWithSchema(record);
             }
+            final int beforeRecordSize = recordSizeInBytes(record);
+            final int afterRecordSize = recordSizeInBytes(result);
             LOG.info(
-                    "StructToJsonDebug applied: topic={}, partition={}, mappings={}",
+                    "StructToJsonDebug applied: topic={}, partition={}, mappings={}, "
+                            + "beforeRecordSizeBytes={}, afterRecordSizeBytes={}",
                     topic,
                     partition,
-                    config.fieldMappings().size());
+                    config.fieldMappings().size(),
+                    beforeRecordSize,
+                    afterRecordSize);
             return result;
         } catch (final Exception e) {
             LOG.info(
@@ -277,19 +282,99 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
 
         for (final Field field : schema.fields()) {
             if (inputsToReplace.contains(field.name())) {
-                builder.field(field.name(), Schema.OPTIONAL_STRING_SCHEMA);
+                builder.field(
+                        field.name(),
+                        buildOptionalStringSchemaWithParams(field.schema().parameters()));
             } else {
                 builder.field(field.name(), field.schema());
             }
         }
 
+        int maxFieldNumber = findMaxProtobufFieldNumber(schema);
         for (final String outputField : outputsToAdd) {
             if (schema.field(outputField) == null) {
-                builder.field(outputField, Schema.OPTIONAL_STRING_SCHEMA);
+                maxFieldNumber++;
+                builder.field(
+                        outputField, buildOptionalStringSchemaWithFieldNumber(maxFieldNumber));
             }
         }
 
         return builder.build();
+    }
+
+    /**
+     * Finds the maximum protobuf field number (tag) in the schema. Protobuf field numbers are
+     * stored in schema parameters with key "io.confluent.connect.protobuf.Tag".
+     */
+    private int findMaxProtobufFieldNumber(final Schema schema) {
+        int maxFieldNumber = 0;
+        for (final Field field : schema.fields()) {
+            final Map<String, String> params = field.schema().parameters();
+            if (params != null && params.containsKey("io.confluent.connect.protobuf.Tag")) {
+                try {
+                    final int tag =
+                            Integer.parseInt(params.get("io.confluent.connect.protobuf.Tag"));
+                    maxFieldNumber = Math.max(maxFieldNumber, tag);
+                } catch (final NumberFormatException e) {
+                    LOG.warn(
+                            "Invalid io.confluent.connect.protobuf.Tag value for field {}: {}",
+                            field.name(),
+                            params.get("io.confluent.connect.protobuf.Tag"));
+                }
+            }
+        }
+        return maxFieldNumber;
+    }
+
+    /**
+     * Builds an optional string schema preserving the given parameters (e.g.,
+     * io.confluent.connect.protobuf.Tag).
+     */
+    private Schema buildOptionalStringSchemaWithParams(final Map<String, String> params) {
+        final SchemaBuilder fieldBuilder = SchemaBuilder.string().optional();
+        if (params != null && !params.isEmpty()) {
+            fieldBuilder.parameters(params);
+        }
+        return fieldBuilder.build();
+    }
+
+    /** Builds an optional string schema with a specific protobuf field number. */
+    private Schema buildOptionalStringSchemaWithFieldNumber(final int fieldNumber) {
+        return SchemaBuilder.string()
+                .optional()
+                .parameter("io.confluent.connect.protobuf.Tag", String.valueOf(fieldNumber))
+                .build();
+    }
+
+    /**
+     * Returns the approximate size in bytes of the full Connect record (key + value) when
+     * serialized as JSON (UTF-8). Returns -1 if serialization fails for either part.
+     */
+    private int recordSizeInBytes(final R record) {
+        final int keySize = sizeInBytes(record.key());
+        final int valueSize = sizeInBytes(record.value());
+        if (keySize < 0 || valueSize < 0) {
+            return -1;
+        }
+        return keySize + valueSize;
+    }
+
+    /**
+     * Returns the approximate size in bytes of the value when serialized as JSON (UTF-8). Returns 0
+     * for null, -1 if serialization fails.
+     */
+    private int sizeInBytes(final Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            final Object toSerialize =
+                    value instanceof Struct ? structToMap((Struct) value) : value;
+            return objectMapper.writeValueAsBytes(toSerialize).length;
+        } catch (final JsonProcessingException e) {
+            LOG.debug("Could not compute size for value: {}", e.getMessage());
+            return -1;
+        }
     }
 
     private String convertToJson(final Object value) {

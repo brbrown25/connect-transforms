@@ -23,7 +23,7 @@ help:
 
 # Build without tests
 build:
-	./gradlew build -x test -x integrationTest -x checkstyleIntegrationTest
+	./gradlew build -x test -x integrationTest -x checkstyleIntegrationTest -x jacocoTestCoverageVerification
 
 # Clean build artifacts
 clean:

@@ -34,8 +34,8 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A Kafka Connect Single Message Transform (SMT) that converts a Struct field to a JSON string.
@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class StructToJson<R extends ConnectRecord<R>> implements Transformation<R> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StructToJson.class);
+    private static final Logger LOG = LogManager.getLogger(StructToJson.class);
 
     private StructToJsonConfig config;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -244,17 +244,72 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         for (final Field field : schema.fields()) {
             if (field.name().equals(config.fieldName())
                     && config.outputFieldName().equals(config.fieldName())) {
-                builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+                // builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+                // Replacing field in-place: preserve original field's schema parameters (including
+                // io.confluent.connect.protobuf.Tag)
+                builder.field(
+                        config.outputFieldName(),
+                        buildOptionalStringSchemaWithParams(field.schema().parameters()));
             } else {
                 builder.field(field.name(), field.schema());
             }
         }
 
         if (!config.outputFieldName().equals(config.fieldName())) {
-            builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+            // builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+            // Adding a new field: assign a unique protobuf field number
+            int maxFieldNumber = findMaxProtobufFieldNumber(schema);
+            maxFieldNumber++;
+            builder.field(
+                    config.outputFieldName(),
+                    buildOptionalStringSchemaWithFieldNumber(maxFieldNumber));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Finds the maximum protobuf field number (tag) in the schema. Protobuf field numbers are
+     * stored in schema parameters with key "io.confluent.connect.protobuf.Tag".
+     */
+    private int findMaxProtobufFieldNumber(final Schema schema) {
+        int maxFieldNumber = 0;
+        for (final Field field : schema.fields()) {
+            final Map<String, String> params = field.schema().parameters();
+            if (params != null && params.containsKey("io.confluent.connect.protobuf.Tag")) {
+                try {
+                    final int tag =
+                            Integer.parseInt(params.get("io.confluent.connect.protobuf.Tag"));
+                    maxFieldNumber = Math.max(maxFieldNumber, tag);
+                } catch (final NumberFormatException e) {
+                    LOG.warn(
+                            "Invalid io.confluent.connect.protobuf.Tag value for field {}: {}",
+                            field.name(),
+                            params.get("io.confluent.connect.protobuf.Tag"));
+                }
+            }
+        }
+        return maxFieldNumber;
+    }
+
+    /**
+     * Builds an optional string schema preserving the given parameters (e.g.,
+     * io.confluent.connect.protobuf.Tag).
+     */
+    private Schema buildOptionalStringSchemaWithParams(final Map<String, String> params) {
+        final SchemaBuilder fieldBuilder = SchemaBuilder.string().optional();
+        if (params != null && !params.isEmpty()) {
+            fieldBuilder.parameters(params);
+        }
+        return fieldBuilder.build();
+    }
+
+    /** Builds an optional string schema with a specific protobuf field number. */
+    private Schema buildOptionalStringSchemaWithFieldNumber(final int fieldNumber) {
+        return SchemaBuilder.string()
+                .optional()
+                .parameter("io.confluent.connect.protobuf.Tag", String.valueOf(fieldNumber))
+                .build();
     }
 
     private String convertToJson(final Object value) {

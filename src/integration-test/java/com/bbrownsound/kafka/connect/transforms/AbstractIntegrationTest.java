@@ -36,10 +36,10 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
@@ -53,7 +53,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 public abstract class AbstractIntegrationTest {
 
-    protected static final Logger LOG = LoggerFactory.getLogger(AbstractIntegrationTest.class);
+    protected static final Logger LOG = LogManager.getLogger(AbstractIntegrationTest.class);
     protected static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     protected static final HttpClient HTTP_CLIENT =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
