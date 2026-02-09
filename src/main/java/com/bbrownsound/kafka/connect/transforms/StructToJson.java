@@ -187,17 +187,63 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
         for (final Field field : schema.fields()) {
             if (field.name().equals(config.fieldName())
                     && config.outputFieldName().equals(config.fieldName())) {
-                builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+                //builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+                // Replacing field in-place: preserve original field's schema parameters (including protobuf.tag)
+                builder.field(config.outputFieldName(), buildOptionalStringSchemaWithParams(field.schema().parameters()));
             } else {
                 builder.field(field.name(), field.schema());
             }
         }
 
         if (!config.outputFieldName().equals(config.fieldName())) {
-            builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+            //builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
+            // Adding a new field: assign a unique protobuf field number
+            maxFieldNumber++;
+            builder.field(config.outputFieldName(), buildOptionalStringSchemaWithFieldNumber(maxFieldNumber));
         }
 
         return builder.build();
+    }
+
+/**
+     * Finds the maximum protobuf field number (tag) in the schema.
+     * Protobuf field numbers are stored in schema parameters with key "protobuf.tag".
+     */
+    private int findMaxProtobufFieldNumber(final Schema schema) {
+        int maxFieldNumber = 0;
+        for (final Field field : schema.fields()) {
+            final Map<String, String> params = field.schema().parameters();
+            if (params != null && params.containsKey("protobuf.tag")) {
+                try {
+                    final int tag = Integer.parseInt(params.get("protobuf.tag"));
+                    maxFieldNumber = Math.max(maxFieldNumber, tag);
+                } catch (final NumberFormatException e) {
+                    LOG.warn("Invalid protobuf.tag value for field {}: {}", field.name(), params.get("protobuf.tag"));
+                }
+            }
+        }
+        return maxFieldNumber;
+    }
+
+    /**
+     * Builds an optional string schema preserving the given parameters (e.g., protobuf.tag).
+     */
+    private Schema buildOptionalStringSchemaWithParams(final Map<String, String> params) {
+        final SchemaBuilder fieldBuilder = SchemaBuilder.string().optional();
+        if (params != null && !params.isEmpty()) {
+            fieldBuilder.parameters(params);
+        }
+        return fieldBuilder.build();
+    }
+
+    /**
+     * Builds an optional string schema with a specific protobuf field number.
+     */
+    private Schema buildOptionalStringSchemaWithFieldNumber(final int fieldNumber) {
+        return SchemaBuilder.string()
+                .optional()
+                .parameter("protobuf.tag", String.valueOf(fieldNumber))
+                .build();
     }
 
     private String convertToJson(final Object value) {
