@@ -188,7 +188,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
             if (field.name().equals(config.fieldName())
                     && config.outputFieldName().equals(config.fieldName())) {
                 //builder.field(config.outputFieldName(), Schema.OPTIONAL_STRING_SCHEMA);
-                // Replacing field in-place: preserve original field's schema parameters (including protobuf.tag)
+                // Replacing field in-place: preserve original field's schema parameters (including io.confluent.connect.protobuf.Tag)
                 builder.field(config.outputFieldName(), buildOptionalStringSchemaWithParams(field.schema().parameters()));
             } else {
                 builder.field(field.name(), field.schema());
@@ -207,18 +207,18 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
 
 /**
      * Finds the maximum protobuf field number (tag) in the schema.
-     * Protobuf field numbers are stored in schema parameters with key "protobuf.tag".
+     * Protobuf field numbers are stored in schema parameters with key "io.confluent.connect.protobuf.Tag".
      */
     private int findMaxProtobufFieldNumber(final Schema schema) {
         int maxFieldNumber = 0;
         for (final Field field : schema.fields()) {
             final Map<String, String> params = field.schema().parameters();
-            if (params != null && params.containsKey("protobuf.tag")) {
+            if (params != null && params.containsKey("io.confluent.connect.protobuf.Tag")) {
                 try {
-                    final int tag = Integer.parseInt(params.get("protobuf.tag"));
+                    final int tag = Integer.parseInt(params.get("io.confluent.connect.protobuf.Tag"));
                     maxFieldNumber = Math.max(maxFieldNumber, tag);
                 } catch (final NumberFormatException e) {
-                    LOG.warn("Invalid protobuf.tag value for field {}: {}", field.name(), params.get("protobuf.tag"));
+                    LOG.warn("Invalid io.confluent.connect.protobuf.Tag value for field {}: {}", field.name(), params.get("io.confluent.connect.protobuf.Tag"));
                 }
             }
         }
@@ -226,7 +226,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
     }
 
     /**
-     * Builds an optional string schema preserving the given parameters (e.g., protobuf.tag).
+     * Builds an optional string schema preserving the given parameters (e.g., io.confluent.connect.protobuf.Tag).
      */
     private Schema buildOptionalStringSchemaWithParams(final Map<String, String> params) {
         final SchemaBuilder fieldBuilder = SchemaBuilder.string().optional();
@@ -242,7 +242,7 @@ public abstract class StructToJson<R extends ConnectRecord<R>> implements Transf
     private Schema buildOptionalStringSchemaWithFieldNumber(final int fieldNumber) {
         return SchemaBuilder.string()
                 .optional()
-                .parameter("protobuf.tag", String.valueOf(fieldNumber))
+                .parameter("io.confluent.connect.protobuf.Tag", String.valueOf(fieldNumber))
                 .build();
     }
 
