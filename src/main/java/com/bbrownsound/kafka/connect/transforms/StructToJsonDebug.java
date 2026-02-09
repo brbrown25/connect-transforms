@@ -302,38 +302,42 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
         return builder.build();
     }
 
+    /** Confluent Protobuf schema parameter key for field numbers. */
+    private static final String PROTOBUF_TAG_PARAM = "io.confluent.connect.protobuf.Tag";
+
     /**
-     * Finds the maximum protobuf field number (tag) in the schema. Protobuf field numbers are
-     * stored in schema parameters with key "io.confluent.connect.protobuf.Tag".
+     * Finds the maximum protobuf field number (tag) in the schema. When no explicit tags exist,
+     * Confluent's ProtobufConverter auto-assigns starting from 1, so we use field count as fallback
+     * to avoid collisions.
      */
     private int findMaxProtobufFieldNumber(final Schema schema) {
         int maxFieldNumber = 0;
         for (final Field field : schema.fields()) {
             final Map<String, String> params = field.schema().parameters();
-            if (params != null && params.containsKey("io.confluent.connect.protobuf.Tag")) {
+            if (params != null && params.containsKey(PROTOBUF_TAG_PARAM)) {
                 try {
-                    final int tag =
-                            Integer.parseInt(params.get("io.confluent.connect.protobuf.Tag"));
+                    final int tag = Integer.parseInt(params.get(PROTOBUF_TAG_PARAM));
                     maxFieldNumber = Math.max(maxFieldNumber, tag);
                 } catch (final NumberFormatException e) {
                     LOG.warn(
-                            "Invalid io.confluent.connect.protobuf.Tag value for field {}: {}",
+                            "Invalid {} value for field {}: {}",
+                            PROTOBUF_TAG_PARAM,
                             field.name(),
-                            params.get("io.confluent.connect.protobuf.Tag"));
+                            params.get(PROTOBUF_TAG_PARAM));
                 }
             }
         }
-        return maxFieldNumber;
+        return Math.max(maxFieldNumber, schema.fields().size());
     }
 
     /**
-     * Builds an optional string schema preserving the given parameters (e.g.,
-     * io.confluent.connect.protobuf.Tag).
+     * Builds an optional string schema preserving only the Protobuf Tag parameter from the original
+     * field (avoids copying incompatible params like PROTOBUF_TYPE_ENUM).
      */
     private Schema buildOptionalStringSchemaWithParams(final Map<String, String> params) {
         final SchemaBuilder fieldBuilder = SchemaBuilder.string().optional();
-        if (params != null && !params.isEmpty()) {
-            fieldBuilder.parameters(params);
+        if (params != null && params.containsKey(PROTOBUF_TAG_PARAM)) {
+            fieldBuilder.parameter(PROTOBUF_TAG_PARAM, params.get(PROTOBUF_TAG_PARAM));
         }
         return fieldBuilder.build();
     }
@@ -342,7 +346,7 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
     private Schema buildOptionalStringSchemaWithFieldNumber(final int fieldNumber) {
         return SchemaBuilder.string()
                 .optional()
-                .parameter("io.confluent.connect.protobuf.Tag", String.valueOf(fieldNumber))
+                .parameter(PROTOBUF_TAG_PARAM, String.valueOf(fieldNumber))
                 .build();
     }
 
