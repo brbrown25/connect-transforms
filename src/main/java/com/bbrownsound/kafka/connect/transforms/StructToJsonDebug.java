@@ -278,6 +278,10 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
             }
         }
 
+        for (final Field field : schema.fields()) {
+            Map<String, String> params = field.schema().parameters();
+            LOG.info("PRE CHANGE Field: {} -> Parameters: {}", field.name(), params);
+        }
         final SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
 
         for (final Field field : schema.fields()) {
@@ -299,6 +303,10 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
             }
         }
 
+        for (final Field field : builder.build().schema().fields()) {
+            Map<String, String> params = field.schema().parameters();
+            LOG.info("PRE CHANGE Field: {} -> Parameters: {}", field.name(), params);
+        }
         return builder.build();
     }
 
