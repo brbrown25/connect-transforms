@@ -232,6 +232,7 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
         }
 
         Schema updatedSchema = schemaUpdateCache.get(schema);
+        LOG.info("updatedSchema: {}", updatedSchema);
         if (updatedSchema == null) {
             updatedSchema = makeUpdatedSchema(schema);
             schemaUpdateCache.put(schema, updatedSchema);
@@ -305,7 +306,7 @@ public abstract class StructToJsonDebug<R extends ConnectRecord<R>> implements T
 
         for (final Field field : builder.build().schema().fields()) {
             Map<String, String> params = field.schema().parameters();
-            LOG.info("PRE CHANGE Field: {} -> Parameters: {}", field.name(), params);
+            LOG.info("POST CHANGE Field: {} -> Parameters: {}", field.name(), params);
         }
         return builder.build();
     }
