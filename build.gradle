@@ -29,7 +29,7 @@ ext {
     junitVersion = '6.0.3'
     jacksonVersion = '2.21.0'
     slf4jVersion = '2.0.17'
-    protobufVersion = '3.25.2'
+    protobufVersion = '4.33.5'
     confluentVersion = '8.1.1'
     avroVersion = '1.12.1'
     testcontainersVersion = '1.21.4'
