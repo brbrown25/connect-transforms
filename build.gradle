@@ -45,11 +45,13 @@ dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     
     // Log4j for logging
-    implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
-    implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+    compileOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    compileOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
     // implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
 
     // Test dependencies
+    testImplementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    testImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
     testImplementation "org.apache.kafka:connect-api:${kafkaVersion}"
     testImplementation "org.apache.kafka:connect-transforms:${kafkaVersion}"
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
@@ -91,6 +93,10 @@ configurations {
 }
 
 dependencies {
+    // Log4j for integration tests (needed since it's an implementation dep, not testImplementation)
+    integrationTestImplementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    integrationTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+    
     // Integration test specific dependencies
     integrationTestImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
     integrationTestImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
@@ -286,6 +292,7 @@ jar {
             'Implementation-Version': project.version
         )
     }
+    exclude 'log4j2.xml'
 }
 
 // Create a fat JAR for Connect plugin deployment
@@ -297,6 +304,7 @@ tasks.register('connectPluginJar', Jar) {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'log4j2.xml'
 }
 
 artifacts {
