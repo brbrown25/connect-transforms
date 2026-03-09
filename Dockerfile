@@ -7,7 +7,7 @@ COPY . .
 RUN gradle connectPluginJar -x test --no-daemon
 
 # Runtime stage
-FROM confluentinc/cp-kafka-connect:8.1.1
+FROM confluentinc/cp-kafka-connect:8.2.0
 
 # Copy the plugin JAR to the Connect plugins directory
 COPY --from=builder /app/build/libs/*-connect-plugin.jar /usr/share/confluent-hub-components/connect-transforms/
