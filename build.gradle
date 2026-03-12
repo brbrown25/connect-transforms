@@ -262,7 +262,7 @@ spotless {
         removeUnusedImports()
         trimTrailingWhitespace()
         endWithNewline()
-        indentWithSpaces(4)
+        leadingTabsToSpaces(4)
         // Use Google Java Format
         googleJavaFormat('1.19.2').aosp()
     }
