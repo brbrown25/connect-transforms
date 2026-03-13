@@ -1,9 +1,9 @@
 # Custom Kafka Connect Transforms
 
-[![CI](https://github.com/brandonbrown/connect-transforms/actions/workflows/ci.yml/badge.svg)](https://github.com/brandonbrown/connect-transforms/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/brandonbrown/connect-transforms/branch/main/graph/badge.svg)](https://codecov.io/gh/brandonbrown/connect-transforms)
+[![CI](https://github.com/brbrown25/connect-transforms/actions/workflows/ci.yml/badge.svg)](https://github.com/brbrown25/connect-transforms/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/brbrown25/connect-transforms/branch/main/graph/badge.svg)](https://codecov.io/gh/brbrown25/connect-transforms)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![GitHub release](https://img.shields.io/github/v/release/brandonbrown/connect-transforms)](https://github.com/brandonbrown/connect-transforms/releases)
+[![GitHub release](https://img.shields.io/github/v/release/brbrown25/connect-transforms)](https://github.com/brbrown25/connect-transforms/releases)
 
 A collection of Single Message Transformations (SMTs) for Apache Kafka Connect.
 
@@ -229,7 +229,7 @@ Add the GitHub Packages Maven repository to your build configuration:
 ```groovy
 repositories {
     maven {
-        url = uri("https://maven.pkg.github.com/brandonbrown/connect-transforms")
+        url = uri("https://maven.pkg.github.com/brbrown25/connect-transforms")
         credentials {
             username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
             password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
@@ -261,12 +261,12 @@ dependencies {
 A pre-built Docker image with Kafka Connect and this transformation is available:
 
 ```bash
-docker pull ghcr.io/brandonbrown/connect-transforms:latest
+docker pull ghcr.io/brbrown25/connect-transforms:latest
 ```
 
 Or use a specific version:
 ```bash
-docker pull ghcr.io/brandonbrown/connect-transforms:0.1.0
+docker pull ghcr.io/brbrown25/connect-transforms:0.1.0
 ```
 
 ## CI/CD
