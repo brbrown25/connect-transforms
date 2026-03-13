@@ -25,7 +25,7 @@ repositories {
 }
 
 ext {
-    kafkaVersion = '4.1.1'
+    kafkaVersion = '4.2.0'
     junitVersion = '6.0.3'
     jacksonVersion = '2.21.0'
     log4jVersion = '2.24.3'
