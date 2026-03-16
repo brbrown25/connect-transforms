@@ -28,7 +28,7 @@ ext {
     kafkaVersion = '4.2.0'
     junitVersion = '6.0.3'
     jacksonVersion = '2.21.2'
-    log4jVersion = '2.24.3'
+    log4jVersion = '2.25.3'
     protobufVersion = '4.34.1'
     confluentVersion = '8.2.0'
     avroVersion = '1.12.1'
